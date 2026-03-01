@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { User, Award, Edit3, Trash2, Save, Folder, Star } from 'lucide-react';
+import { Award, Edit3, Trash2, Save, Folder, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Post, Review } from '../types';
+import { Post, Review, ApiResponse } from '../types';
 import { PostModal } from '../components/PostModal';
 
 export interface MyPageProps {
   onGoToChat: (postId: number) => void;
+}
+
+interface MyProjectsData {
+  created: Post[];
+  joined: Post[];
 }
 
 export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
@@ -16,7 +21,7 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
   const [name, setName] = useState(user?.name || '');
   const [profileData, setProfileData] = useState(user?.profile_data || '');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const [projects, setProjects] = useState<{ created: Post[], joined: Post[] }>({ created: [], joined: [] });
   const [reviews, setReviews] = useState<Review[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -29,53 +34,59 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
   }, [user?.id]);
 
   const fetchProjects = async () => {
-    const res = await fetch('/api/users/projects', {
+    const res = await fetch('/api/members/me/projects', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (res.ok) setProjects(await res.json());
+    if (res.ok) {
+      const json: ApiResponse<MyProjectsData> = await res.json();
+      if (json.success) setProjects(json.data);
+    }
   };
 
   const fetchReviews = async () => {
-    const res = await fetch(`/api/users/${user?.id}/reviews`);
-    if (res.ok) setReviews(await res.json());
+    const res = await fetch(`/api/members/${user?.id}/reviews`);
+    if (res.ok) {
+      const json: ApiResponse<Review[]> = await res.json();
+      if (json.success) setReviews(json.data);
+    }
   };
 
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/profile', {
+      const res = await fetch('/api/members/me', {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ name, profile_data: profileData }),
       });
       if (res.ok) {
-        login(token!, { ...user, name, profile_data: profileData });
+        login(token!, { ...user!, name, profile_data: profileData });
         setIsEditing(false);
       }
     } catch (err) {
-      alert('Failed to save profile');
+      alert('프로필 저장 실패');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm('Are you sure you want to delete your account? This cannot be undone.')) return;
+    if (!confirm('계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
     try {
-      const res = await fetch('/api/auth/account', {
+      const res = await fetch('/api/members/me', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        logout();
-      }
+      if (res.ok) logout();
     } catch (err) {
-      alert('Failed to delete account');
+      alert('계정 삭제 실패');
     }
   };
+
+  if (!user) return null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -93,13 +104,13 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
               </p>
             </div>
             <div className="flex gap-2">
-              <button 
+              <button
                 onClick={() => setIsEditing(!isEditing)}
                 className="p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-all border border-black/5"
               >
                 <Edit3 size={20} />
               </button>
-              <button 
+              <button
                 onClick={handleDeleteAccount}
                 className="p-3 rounded-2xl bg-red-50 text-red-500 hover:bg-red-100 transition-all border border-red-100"
               >
@@ -107,7 +118,7 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
               </button>
             </div>
           </div>
-          
+
           <div className="flex flex-wrap gap-4 justify-center md:justify-start">
             <div className="bg-gray-50 px-6 py-3 rounded-2xl flex items-center gap-3 border border-black/5">
               <Award className="text-yellow-500" size={20} />
@@ -125,7 +136,7 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
         <div className="flex justify-between items-center mb-8">
           <h3 className="text-xl font-bold">포트폴리오 & 소개</h3>
           {isEditing && (
-            <button 
+            <button
               onClick={handleSave}
               disabled={isLoading}
               className="bg-black text-white px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-black/80 transition-all disabled:opacity-50"
@@ -139,8 +150,8 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">표시 이름</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-black transition-all"
@@ -148,7 +159,7 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">포트폴리오 / 자기소개</label>
-              <textarea 
+              <textarea
                 value={profileData}
                 onChange={e => setProfileData(e.target.value)}
                 rows={6}
@@ -171,14 +182,14 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
             <Folder className="text-black" size={24} />
             <h3 className="text-xl font-bold">내 프로젝트</h3>
           </div>
-          
+
           <div className="space-y-4">
             {[...projects.created, ...projects.joined].length === 0 ? (
               <p className="text-gray-400 text-sm">참여 중인 프로젝트가 없습니다.</p>
             ) : (
               [...projects.created, ...projects.joined].map(project => (
-                <div 
-                  key={project.id} 
+                <div
+                  key={project.id}
                   onClick={() => setSelectedPost(project)}
                   className="p-4 bg-gray-50 rounded-2xl border border-black/5 hover:border-black transition-all cursor-pointer group"
                 >
@@ -219,10 +230,10 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
                     </div>
                     <div className="flex gap-0.5">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <Star 
-                          key={i} 
-                          size={10} 
-                          className={cn(i < review.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-200")} 
+                        <Star
+                          key={i}
+                          size={10}
+                          className={cn(i < review.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-200")}
                         />
                       ))}
                     </div>
@@ -237,9 +248,9 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
 
       <AnimatePresence>
         {selectedPost && (
-          <PostModal 
-            post={selectedPost} 
-            onClose={() => setSelectedPost(null)} 
+          <PostModal
+            post={selectedPost}
+            onClose={() => setSelectedPost(null)}
             onGoToChat={onGoToChat}
           />
         )}

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Post, Message } from '../types';
+import { Post, Message, ApiResponse } from '../types';
 import { useAuth } from '../components/AuthContext';
-import { Send, ArrowLeft, MessageSquare, User } from 'lucide-react';
+import { Send, ArrowLeft, MessageSquare } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
 interface ChatPageProps {
   postId: number;
@@ -17,60 +19,83 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMsg, setNewMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const socketRef = useRef<WebSocket | null>(null);
+  const [groupChatId, setGroupChatId] = useState<number | null>(null);
+  const stompClientRef = useRef<Client | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchPost();
-    fetchMessages();
-    connectSocket();
+    fetchPostAndMessages();
     return () => {
-      socketRef.current?.close();
+      stompClientRef.current?.deactivate();
     };
   }, [postId]);
+
+  // Connect STOMP once we have the groupChatId
+  useEffect(() => {
+    if (!groupChatId || !token) return;
+    connectStomp(groupChatId);
+  }, [groupChatId, token]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const fetchPost = async () => {
-    const res = await fetch(`/api/posts/${postId}`);
-    if (res.ok) setPost(await res.json());
-  };
+  const fetchPostAndMessages = async () => {
+    try {
+      // Fetch project detail (includes group_chat_id)
+      const postRes = await fetch(`/api/projects/${postId}`);
+      if (postRes.ok) {
+        const json: ApiResponse<Post> = await postRes.json();
+        setPost(json.data);
+        setGroupChatId(json.data.group_chat_id ?? null);
+      }
 
-  const fetchMessages = async () => {
-    const res = await fetch(`/api/posts/${postId}/messages`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setMessages(await res.json());
+      // Fetch chat history
+      const msgRes = await fetch(`/api/projects/${postId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (msgRes.ok) {
+        const json: ApiResponse<Message[]> = await msgRes.json();
+        setMessages(json.data);
+      } else {
+        alert('채팅방 접근 권한이 없습니다');
+        onBack();
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
       setIsLoading(false);
-    } else {
-      alert('Access denied to chat');
-      onBack();
     }
   };
 
-  const connectSocket = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}`);
-    socketRef.current = socket;
-
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ type: 'join', token, postId }));
-    };
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'chat') {
-        setMessages(prev => [...prev, data]);
-      }
-    };
+  const connectStomp = (chatId: number) => {
+    const client = new Client({
+      webSocketFactory: () => new SockJS('/ws'),
+      connectHeaders: {
+        Authorization: `Bearer ${token}`,
+      },
+      reconnectDelay: 5000,
+      onConnect: () => {
+        client.subscribe(`/sub/chat/${chatId}`, (frame) => {
+          const msg: Message = JSON.parse(frame.body);
+          setMessages(prev => [...prev, msg]);
+        });
+      },
+      onStompError: (frame) => {
+        console.error('STOMP error:', frame.headers['message']);
+      },
+    });
+    client.activate();
+    stompClientRef.current = client;
   };
 
   const handleSendChat = () => {
-    if (!newMsg.trim() || !socketRef.current) return;
-    socketRef.current.send(JSON.stringify({ type: 'chat', content: newMsg }));
+    if (!newMsg.trim() || !stompClientRef.current?.connected || !groupChatId) return;
+    stompClientRef.current.publish({
+      destination: `/pub/chat/${groupChatId}`,
+      body: JSON.stringify({ content: newMsg }),
+    });
     setNewMsg('');
   };
 
@@ -91,12 +116,6 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
           <h2 className="text-xl font-bold tracking-tight">{post?.main_title}</h2>
           <p className="text-xs text-gray-400 font-medium uppercase tracking-widest">그룹 채팅 • {post?.subtitle}</p>
         </div>
-        <div className="flex -space-x-2">
-          {/* Mock participants avatars */}
-          <div className="w-8 h-8 rounded-full bg-black border-2 border-white flex items-center justify-center text-[10px] text-white font-bold">K</div>
-          <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] font-bold">L</div>
-          <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold">+</div>
-        </div>
       </div>
 
       {/* Messages */}
@@ -107,7 +126,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
             <p className="font-medium">대화를 시작해 보세요!</p>
           </div>
         ) : (
-          messages.map((msg, i) => {
+          messages.map((msg) => {
             const isMe = msg.user_id === user?.id;
             return (
               <div key={msg.id} className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
@@ -135,15 +154,15 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
       {/* Input */}
       <div className="p-6 border-t border-black/5 bg-gray-50/50">
         <div className="flex gap-3">
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={newMsg}
             onChange={e => setNewMsg(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSendChat()}
             placeholder="메시지를 입력하세요..."
             className="flex-1 bg-white border border-black/5 rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-black transition-all shadow-sm"
           />
-          <button 
+          <button
             onClick={handleSendChat}
             className="bg-black text-white p-4 rounded-2xl hover:bg-black/80 transition-all shadow-lg shadow-black/10"
           >

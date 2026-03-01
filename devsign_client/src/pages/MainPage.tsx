@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Post } from '../types';
+import { Post, ApiResponse } from '../types';
 import { PostModal } from '../components/PostModal';
-import { ChevronLeft, ChevronRight, Search, Filter, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
@@ -10,6 +10,11 @@ import { useAuth } from '../components/AuthContext';
 interface MainPageProps {
   onNavigate: (page: string) => void;
   onGoToChat: (postId: number) => void;
+}
+
+interface PageData {
+  content: Post[];
+  total_pages: number;
 }
 
 export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) => {
@@ -28,10 +33,13 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
   const fetchPosts = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/posts?page=${page}&status=${statusFilter}`);
-      const data = await res.json();
-      setPosts(data.posts);
-      setTotalPages(data.pages);
+      const statusParam = statusFilter !== 'all' ? `&status=${statusFilter.toUpperCase()}` : '';
+      const res = await fetch(`/api/projects?page=${page - 1}&size=10${statusParam}`);
+      const json: ApiResponse<PageData> = await res.json();
+      if (json.success) {
+        setPosts(json.data.content);
+        setTotalPages(json.data.total_pages);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -53,7 +61,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           </p>
           <div className="flex gap-4 mb-8">
             {user && (
-              <button 
+              <button
                 onClick={() => onNavigate('create')}
                 className="bg-white text-black px-8 py-4 rounded-2xl font-bold hover:bg-gray-100 transition-all flex items-center gap-2"
               >
@@ -74,9 +82,9 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
         </div>
         <div className="absolute top-0 right-0 w-1/2 h-full opacity-20 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-l from-black to-transparent z-10" />
-          <img 
-            src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80" 
-            alt="Collaboration" 
+          <img
+            src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80"
+            alt="Collaboration"
             className="w-full h-full object-cover grayscale"
             referrerPolicy="no-referrer"
           />
@@ -87,49 +95,25 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="프로젝트 검색..." 
+          <input
+            type="text"
+            placeholder="프로젝트 검색..."
             className="w-full bg-white border-none rounded-2xl pl-12 pr-4 py-4 shadow-sm focus:ring-2 focus:ring-black transition-all"
           />
         </div>
         <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-          <button 
-            onClick={() => setStatusFilter('all')}
-            className={cn(
-              "px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap",
-              statusFilter === 'all' ? "bg-black text-white" : "bg-white text-gray-500 border border-black/5"
-            )}
-          >
-            모든 프로젝트
-          </button>
-          <button 
-            onClick={() => setStatusFilter('recruiting')}
-            className={cn(
-              "px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap",
-              statusFilter === 'recruiting' ? "bg-black text-white" : "bg-white text-gray-500 border border-black/5"
-            )}
-          >
-            모집 중
-          </button>
-          <button 
-            onClick={() => setStatusFilter('progress')}
-            className={cn(
-              "px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap",
-              statusFilter === 'progress' ? "bg-black text-white" : "bg-white text-gray-500 border border-black/5"
-            )}
-          >
-            진행 중
-          </button>
-          <button 
-            onClick={() => setStatusFilter('completed')}
-            className={cn(
-              "px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap",
-              statusFilter === 'completed' ? "bg-black text-white" : "bg-white text-gray-500 border border-black/5"
-            )}
-          >
-            완료됨
-          </button>
+          {(['all', 'recruiting', 'progress', 'completed'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => { setStatusFilter(s); setPage(1); }}
+              className={cn(
+                "px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap",
+                statusFilter === s ? "bg-black text-white" : "bg-white text-gray-500 border border-black/5"
+              )}
+            >
+              {s === 'all' ? '모든 프로젝트' : s === 'recruiting' ? '모집 중' : s === 'progress' ? '진행 중' : '완료됨'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -145,7 +129,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           </div>
         ) : (
           posts.map((post) => (
-            <motion.div 
+            <motion.div
               key={post.id}
               whileHover={{ y: -4 }}
               onClick={() => setSelectedPost(post)}
@@ -186,7 +170,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
                   {post.subtitle}
                 </p>
               </div>
-              
+
               <div className="pt-6 border-t border-black/5 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold">
@@ -206,7 +190,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-4 pt-8">
-          <button 
+          <button
             disabled={page === 1}
             onClick={() => setPage(p => p - 1)}
             className="p-3 rounded-2xl bg-white border border-black/5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all"
@@ -216,7 +200,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           <span className="font-bold text-sm">
             {page} / {totalPages} 페이지
           </span>
-          <button 
+          <button
             disabled={page === totalPages}
             onClick={() => setPage(p => p + 1)}
             className="p-3 rounded-2xl bg-white border border-black/5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all"
@@ -229,9 +213,9 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
       {/* Modal */}
       <AnimatePresence>
         {selectedPost && (
-          <PostModal 
-            post={selectedPost} 
-            onClose={() => setSelectedPost(null)} 
+          <PostModal
+            post={selectedPost}
+            onClose={() => setSelectedPost(null)}
             onGoToChat={onGoToChat}
           />
         )}

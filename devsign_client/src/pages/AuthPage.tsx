@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { Mail, Lock, User, ArrowRight, Github } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Role } from '../types';
+import { Role, ApiResponse } from '../types';
+
+interface LoginData {
+  id: number;
+  email: string;
+  name: string;
+  role: Role;
+  reputation: number;
+  profile_data?: string;
+  token: string;
+}
 
 export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,24 +27,41 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-    const body = isLogin ? { email, password } : { email, password, name, role };
-
     try {
-      const res = await fetch(endpoint, {
+      if (!isLogin) {
+        // 회원가입
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, name, role }),
+        });
+        const json: ApiResponse<null> = await res.json();
+        if (!res.ok || !json.success) {
+          alert(json.message || '회원가입 실패');
+          return;
+        }
+        // 가입 후 로그인 폼으로 전환
+        setIsLogin(true);
+        alert('회원가입 성공! 로그인해주세요.');
+        return;
+      }
+
+      // 로그인
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        login(data.token, data.user);
-        onAuthSuccess();
-      } else {
-        alert(data.error);
+      const json: ApiResponse<LoginData> = await res.json();
+      if (!res.ok || !json.success) {
+        alert(json.message || '로그인 실패');
+        return;
       }
+      const { token, ...userFields } = json.data;
+      login(token, userFields);
+      onAuthSuccess();
     } catch (err) {
-      alert('Something went wrong');
+      alert('오류가 발생했습니다');
     } finally {
       setIsLoading(false);
     }
@@ -42,7 +69,7 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
 
   return (
     <div className="max-w-md mx-auto pt-12">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-black/5 border border-black/5"
@@ -64,17 +91,17 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
             <>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  placeholder="이름 (실명)" 
+                  placeholder="이름 (실명)"
                   className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-black transition-all"
                 />
               </div>
               <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl">
-                <button 
+                <button
                   type="button"
                   onClick={() => setRole('developer')}
                   className={cn(
@@ -84,7 +111,7 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
                 >
                   개발자
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setRole('designer')}
                   className={cn(
@@ -97,33 +124,33 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
               </div>
             </>
           )}
-          
+
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="email" 
+            <input
+              type="email"
               required
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="이메일 주소" 
+              placeholder="이메일 주소"
               className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-black transition-all"
             />
           </div>
 
           <div className="relative">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="password" 
+            <input
+              type="password"
               required
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="비밀번호" 
+              placeholder="비밀번호"
               className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-black transition-all"
             />
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isLoading}
             className="w-full bg-black text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-black/80 transition-all disabled:opacity-50"
           >
@@ -133,7 +160,7 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
         </form>
 
         <div className="mt-8 pt-8 border-t border-black/5 text-center">
-          <button 
+          <button
             onClick={() => setIsLogin(!isLogin)}
             className="text-sm font-bold text-gray-400 hover:text-black transition-colors"
           >

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, ApiResponse } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -27,8 +27,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          const data = await res.json();
-          setUser(data);
+          const json: ApiResponse<User> = await res.json();
+          setUser(json.data);
         } else {
           logout();
         }

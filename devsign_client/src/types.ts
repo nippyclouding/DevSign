@@ -14,14 +14,16 @@ export interface Post {
   author_id: number;
   author_name: string;
   author_role: Role;
+  author_reputation: number;
   main_title: string;
   subtitle: string;
   start_date: string;
   end_date: string;
-  content: string;
+  content?: string;
   status: 'recruiting' | 'progress' | 'completed';
   needed_developers: number;
   needed_designers: number;
+  group_chat_id?: number;
   created_at: string;
 }
 
@@ -51,10 +53,15 @@ export interface Application {
 
 export interface Message {
   id: number;
-  post_id: number;
   user_id: number;
   user_name: string;
   user_role: Role;
   content: string;
   created_at: string;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message: string;
 }

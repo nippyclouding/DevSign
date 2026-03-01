@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Award, X } from 'lucide-react';
+import { Award, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { User as UserType, Review } from '../types';
+import { User as UserType, Review, ApiResponse } from '../types';
 
 interface UserProfileModalProps {
   userId: number;
@@ -17,11 +17,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onCl
     const fetchUserData = async () => {
       try {
         const [userRes, reviewsRes] = await Promise.all([
-          fetch(`/api/users/${userId}`),
-          fetch(`/api/users/${userId}/reviews`)
+          fetch(`/api/members/${userId}`),
+          fetch(`/api/members/${userId}/reviews`),
         ]);
-        if (userRes.ok) setUser(await userRes.json());
-        if (reviewsRes.ok) setReviews(await reviewsRes.json());
+        if (userRes.ok) {
+          const json: ApiResponse<UserType> = await userRes.json();
+          setUser(json.data);
+        }
+        if (reviewsRes.ok) {
+          const json: ApiResponse<Review[]> = await reviewsRes.json();
+          setReviews(json.data);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -35,14 +41,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ userId, onCl
   if (!user) return null;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={onClose}
     >
-      <motion.div 
+      <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}

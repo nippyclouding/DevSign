@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { Send, Calendar, Type, AlignLeft } from 'lucide-react';
 import { motion } from 'motion/react';
+import { ApiResponse } from '../types';
 
 export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const { token } = useAuth();
@@ -18,27 +19,30 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
     e.preventDefault();
     setIsLoading(true);
     try {
-      const res = await fetch('/api/posts', {
+      const res = await fetch('/api/projects', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           main_title: mainTitle,
-          subtitle: subtitle,
+          subtitle,
           start_date: startDate,
           end_date: endDate,
-          content: content,
+          content,
           needed_developers: neededDevelopers,
-          needed_designers: neededDesigners
+          needed_designers: neededDesigners,
         }),
       });
-      if (res.ok) {
+      const json: ApiResponse<unknown> = await res.json();
+      if (res.ok && json.success) {
         onSuccess();
+      } else {
+        alert(json.message || '프로젝트 생성 실패');
       }
     } catch (err) {
-      alert('Failed to create post');
+      alert('오류가 발생했습니다');
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +50,7 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
 
   return (
     <div className="max-w-3xl mx-auto">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-[2.5rem] p-10 border border-black/5 shadow-sm"
@@ -61,12 +65,12 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
             <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">메인 제목 (회사/이벤트)</label>
             <div className="relative">
               <Type className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={mainTitle}
                 onChange={e => setMainTitle(e.target.value)}
-                placeholder="예: 엔트로픽 / 매일경제신문" 
+                placeholder="예: 엔트로픽 / 매일경제신문"
                 className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-black transition-all"
               />
             </div>
@@ -76,12 +80,12 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
             <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">부제목 (프로젝트 이름)</label>
             <div className="relative">
               <AlignLeft className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={subtitle}
                 onChange={e => setSubtitle(e.target.value)}
-                placeholder="예: 해커톤 참가자 모집" 
+                placeholder="예: 해커톤 참가자 모집"
                 className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-black transition-all"
               />
             </div>
@@ -92,8 +96,8 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
               <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">시작일</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   required
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
@@ -105,8 +109,8 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
               <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">종료일</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   required
                   value={endDate}
                   onChange={e => setEndDate(e.target.value)}
@@ -119,8 +123,8 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">모집 개발자 수</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 min="0"
                 value={neededDevelopers}
                 onChange={e => setNeededDevelopers(parseInt(e.target.value) || 0)}
@@ -129,8 +133,8 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">모집 디자이너 수</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 min="0"
                 value={neededDesigners}
                 onChange={e => setNeededDesigners(parseInt(e.target.value) || 0)}
@@ -141,7 +145,7 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
 
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-widest opacity-50 px-1">일정 및 준비 방식</label>
-            <textarea 
+            <textarea
               required
               value={content}
               onChange={e => setContent(e.target.value)}
@@ -151,8 +155,8 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
             />
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isLoading}
             className="w-full bg-black text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-black/80 transition-all disabled:opacity-50 shadow-lg shadow-black/10"
           >
