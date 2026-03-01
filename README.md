@@ -15,6 +15,8 @@
 7. [공통 응답 형식](#공통-응답-형식)
 
 ---
+<img width="1275" height="988" alt="sign1" src="https://github.com/user-attachments/assets/7a47c3f6-7e9c-4afa-a1b4-3084d04eddb3" />
+
 
 ## 프로젝트 소개
 
