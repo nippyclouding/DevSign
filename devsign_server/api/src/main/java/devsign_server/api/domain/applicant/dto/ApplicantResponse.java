@@ -12,7 +12,7 @@ public record ApplicantResponse(
         Long applicantId,
         String applicantName,
         Section applicantRole,
-        int applicantReputation,
+        double applicantReputation,
         String applicantProfile,
         ApplicantStatus status,
         LocalDateTime createdAt

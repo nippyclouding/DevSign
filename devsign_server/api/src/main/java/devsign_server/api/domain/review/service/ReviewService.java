@@ -52,6 +52,10 @@ public class ReviewService {
             throw new CustomException(ErrorCode.NOT_PROJECT_MEMBER);
         }
 
+        if (reviewerId.equals(request.revieweeId())) {
+            throw new CustomException(ErrorCode.SELF_REVIEW);
+        }
+
         if (reviewRepository.existsByProjectProjectIdAndReviewerMemberIdAndRevieweeMemberId(
                 request.postId(), reviewerId, request.revieweeId())) {
             throw new CustomException(ErrorCode.ALREADY_REVIEWED);

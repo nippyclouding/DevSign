@@ -26,7 +26,13 @@ public class ChatWebSocketController {
             org.springframework.messaging.simp.stomp.StompHeaderAccessor headerAccessor
     ) {
         Map<String, Object> sessionAttributes = headerAccessor.getSessionAttributes();
+        if (sessionAttributes == null) {
+            throw new IllegalStateException("세션 정보가 없습니다.");
+        }
         Long memberId = (Long) sessionAttributes.get("memberId");
+        if (memberId == null) {
+            throw new IllegalStateException("인증되지 않은 요청입니다.");
+        }
 
         MessageResponse response = chatService.saveMessage(memberId, groupChatId, request.content());
         messagingTemplate.convertAndSend("/sub/chat/" + groupChatId, response);

@@ -35,9 +35,29 @@ public class ProjectController {
         return ApiResponse.ok(projectService.getProjects(status, section, keyword, pageable));
     }
 
+    @GetMapping("/stats")
+    public ApiResponse<ProjectStatsResponse> getStats() {
+        return ApiResponse.ok(projectService.getStats());
+    }
+
+    @GetMapping("/me")
+    public ApiResponse<List<ProjectSummaryResponse>> getMyProjects(
+            @AuthenticationPrincipal MemberDetails memberDetails
+    ) {
+        return ApiResponse.ok(projectService.getMyProjects(memberDetails.getMemberId()));
+    }
+
     @GetMapping("/{projectId}")
     public ApiResponse<ProjectDetailResponse> getProject(@PathVariable Long projectId) {
         return ApiResponse.ok(projectService.getProject(projectId));
+    }
+
+    @GetMapping("/{projectId}/membership")
+    public ApiResponse<MembershipResponse> getMembership(
+            @AuthenticationPrincipal MemberDetails memberDetails,
+            @PathVariable Long projectId
+    ) {
+        return ApiResponse.ok(projectService.getMembership(memberDetails.getMemberId(), projectId));
     }
 
     @PostMapping
@@ -49,6 +69,15 @@ public class ProjectController {
         return ApiResponse.ok(projectService.createProject(memberDetails.getMemberId(), request));
     }
 
+    @PutMapping("/{projectId}")
+    public ApiResponse<ProjectDetailResponse> updateProject(
+            @AuthenticationPrincipal MemberDetails memberDetails,
+            @PathVariable Long projectId,
+            @Valid @RequestBody UpdateProjectRequest request
+    ) {
+        return ApiResponse.ok(projectService.updateProject(memberDetails.getMemberId(), projectId, request));
+    }
+
     @PatchMapping("/{projectId}/status")
     public ApiResponse<ProjectDetailResponse> updateStatus(
             @AuthenticationPrincipal MemberDetails memberDetails,
@@ -58,10 +87,12 @@ public class ProjectController {
         return ApiResponse.ok(projectService.updateStatus(memberDetails.getMemberId(), projectId, request));
     }
 
-    @GetMapping("/me")
-    public ApiResponse<List<ProjectSummaryResponse>> getMyProjects(
-            @AuthenticationPrincipal MemberDetails memberDetails
+    @DeleteMapping("/{projectId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteProject(
+            @AuthenticationPrincipal MemberDetails memberDetails,
+            @PathVariable Long projectId
     ) {
-        return ApiResponse.ok(projectService.getMyProjects(memberDetails.getMemberId()));
+        projectService.deleteProject(memberDetails.getMemberId(), projectId);
     }
 }

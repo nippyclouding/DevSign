@@ -31,7 +31,11 @@ public class Member extends BaseEntity {
 
     @Column(nullable = false)
     @Builder.Default
-    private int reputation = 0;
+    private int reputationSum = 0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int reputationCount = 0;
 
     @Column(columnDefinition = "TEXT")
     private String profileData;
@@ -42,6 +46,12 @@ public class Member extends BaseEntity {
     }
 
     public void addReputation(int score) {
-        this.reputation += score;
+        this.reputationSum += score;
+        this.reputationCount += 1;
+    }
+
+    /** 평균 평점 (리뷰 없으면 0.0) */
+    public double getReputation() {
+        return reputationCount > 0 ? (double) reputationSum / reputationCount : 0.0;
     }
 }

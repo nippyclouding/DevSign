@@ -1,21 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Post, Message, ApiResponse } from '../types';
+import { Message, ApiResponse } from '../types';
 import { useAuth } from '../components/AuthContext';
 import { Send, ArrowLeft, MessageSquare } from 'lucide-react';
-import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import { useParams, useNavigate } from 'react-router-dom';
 
-interface ChatPageProps {
-  postId: number;
-  onBack: () => void;
-}
-
-export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
+export const ChatPage: React.FC = () => {
+  const { postId: postIdStr } = useParams<{ postId: string }>();
+  const postId = Number(postIdStr);
   const { user, token } = useAuth();
-  const [post, setPost] = useState<Post | null>(null);
+  const navigate = useNavigate();
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectSubtitle, setProjectSubtitle] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMsg, setNewMsg] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -30,11 +29,10 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
     };
   }, [postId]);
 
-  // Connect STOMP once we have the groupChatId
   useEffect(() => {
-    if (!groupChatId || !token) return;
+    if (!groupChatId) return;
     connectStomp(groupChatId);
-  }, [groupChatId, token]);
+  }, [groupChatId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,24 +40,24 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
 
   const fetchPostAndMessages = async () => {
     try {
-      // Fetch project detail (includes group_chat_id)
       const postRes = await fetch(`/api/projects/${postId}`);
       if (postRes.ok) {
-        const json: ApiResponse<Post> = await postRes.json();
-        setPost(json.data);
+        const json = await postRes.json();
+        setProjectTitle(json.data.main_title);
+        setProjectSubtitle(json.data.subtitle);
         setGroupChatId(json.data.group_chat_id ?? null);
       }
 
-      // Fetch chat history
       const msgRes = await fetch(`/api/projects/${postId}/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (msgRes.ok) {
         const json: ApiResponse<Message[]> = await msgRes.json();
         setMessages(json.data);
       } else {
         alert('채팅방 접근 권한이 없습니다');
-        onBack();
+        navigate('/');
         return;
       }
     } catch (err) {
@@ -72,9 +70,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
   const connectStomp = (chatId: number) => {
     const client = new Client({
       webSocketFactory: () => new SockJS('/ws'),
-      connectHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
       reconnectDelay: 5000,
       onConnect: () => {
         client.subscribe(`/sub/chat/${chatId}`, (frame) => {
@@ -109,12 +105,12 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
     <div className="max-w-4xl mx-auto h-[calc(100vh-12rem)] flex flex-col bg-white rounded-[2.5rem] shadow-2xl shadow-black/5 border border-black/5 overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-black/5 flex items-center gap-4 bg-gray-50/50">
-        <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1">
-          <h2 className="text-xl font-bold tracking-tight">{post?.main_title}</h2>
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-widest">그룹 채팅 • {post?.subtitle}</p>
+          <h2 className="text-xl font-bold tracking-tight">{projectTitle}</h2>
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-widest">그룹 채팅 • {projectSubtitle}</p>
         </div>
       </div>
 
@@ -158,7 +154,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ postId, onBack }) => {
             type="text"
             value={newMsg}
             onChange={e => setNewMsg(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSendChat()}
+            onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSendChat()}
             placeholder="메시지를 입력하세요..."
             className="flex-1 bg-white border border-black/5 rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-black transition-all shadow-sm"
           />

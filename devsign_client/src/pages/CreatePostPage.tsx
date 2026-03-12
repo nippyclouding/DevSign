@@ -3,9 +3,11 @@ import { useAuth } from '../components/AuthContext';
 import { Send, Calendar, Type, AlignLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ApiResponse } from '../types';
+import { useNavigate } from 'react-router-dom';
 
-export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
+export const CreatePostPage: React.FC = () => {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [mainTitle, setMainTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -21,9 +23,10 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
     try {
       const res = await fetch('/api/projects', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           main_title: mainTitle,
@@ -37,7 +40,7 @@ export const CreatePostPage: React.FC<{ onSuccess: () => void }> = ({ onSuccess 
       });
       const json: ApiResponse<unknown> = await res.json();
       if (res.ok && json.success) {
-        onSuccess();
+        navigate('/');
       } else {
         alert(json.message || '프로젝트 생성 실패');
       }

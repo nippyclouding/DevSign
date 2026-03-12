@@ -1,22 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { Award, Edit3, Trash2, Save, Folder, Star } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Award, Edit3, Trash2, Save, Folder, Star, X, Calendar } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Post, Review, ApiResponse } from '../types';
 import { PostModal } from '../components/PostModal';
-
-export interface MyPageProps {
-  onGoToChat: (postId: number) => void;
-}
+import { useNavigate } from 'react-router-dom';
 
 interface MyProjectsData {
   created: Post[];
   joined: Post[];
 }
 
-export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
-  const { user, token, login, logout } = useAuth();
+interface EditProjectState {
+  main_title: string;
+  subtitle: string;
+  content: string;
+  start_date: string;
+  end_date: string;
+  needed_developers: number;
+  needed_designers: number;
+}
+
+export const MyPage: React.FC = () => {
+  const { user, token, logout, updateUser } = useAuth();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [profileData, setProfileData] = useState(user?.profile_data || '');
@@ -25,9 +33,12 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
   const [projects, setProjects] = useState<{ created: Post[], joined: Post[] }>({ created: [], joined: [] });
   const [reviews, setReviews] = useState<Review[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [editingProject, setEditingProject] = useState<Post | null>(null);
+  const [editForm, setEditForm] = useState<EditProjectState | null>(null);
+  const [isSavingProject, setIsSavingProject] = useState(false);
 
   useEffect(() => {
-    if (user && token) {
+    if (user) {
       fetchProjects();
       fetchReviews();
     }
@@ -35,7 +46,8 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
 
   const fetchProjects = async () => {
     const res = await fetch('/api/members/me/projects', {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (res.ok) {
       const json: ApiResponse<MyProjectsData> = await res.json();
@@ -56,14 +68,15 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
     try {
       const res = await fetch('/api/members/me', {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ name, profile_data: profileData }),
       });
       if (res.ok) {
-        login(token!, { ...user!, name, profile_data: profileData });
+        updateUser({ ...user!, name, profile_data: profileData });
         setIsEditing(false);
       }
     } catch (err) {
@@ -78,7 +91,8 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
     try {
       const res = await fetch('/api/members/me', {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) logout();
     } catch (err) {
@@ -86,7 +100,50 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
     }
   };
 
+  const startEditProject = (project: Post) => {
+    setEditingProject(project);
+    setEditForm({
+      main_title: project.main_title,
+      subtitle: project.subtitle,
+      content: project.content || '',
+      start_date: project.start_date,
+      end_date: project.end_date,
+      needed_developers: project.needed_developers,
+      needed_designers: project.needed_designers,
+    });
+  };
+
+  const handleSaveProject = async () => {
+    if (!editingProject || !editForm) return;
+    setIsSavingProject(true);
+    try {
+      const res = await fetch(`/api/projects/${editingProject.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        setEditingProject(null);
+        setEditForm(null);
+        fetchProjects();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert((json as any).message || '프로젝트 수정 실패');
+      }
+    } catch (err) {
+      alert('오류가 발생했습니다');
+    } finally {
+      setIsSavingProject(false);
+    }
+  };
+
   if (!user) return null;
+
+  const allProjects = [...projects.created, ...projects.joined];
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -124,7 +181,7 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
               <Award className="text-yellow-500" size={20} />
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">평판 점수</p>
-                <p className="font-bold">{user.reputation}</p>
+                <p className="font-bold">{typeof user.reputation === 'number' ? user.reputation.toFixed(1) : user.reputation}</p>
               </div>
             </div>
           </div>
@@ -184,29 +241,47 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
           </div>
 
           <div className="space-y-4">
-            {[...projects.created, ...projects.joined].length === 0 ? (
+            {allProjects.length === 0 ? (
               <p className="text-gray-400 text-sm">참여 중인 프로젝트가 없습니다.</p>
             ) : (
-              [...projects.created, ...projects.joined].map(project => (
-                <div
-                  key={project.id}
-                  onClick={() => setSelectedPost(project)}
-                  className="p-4 bg-gray-50 rounded-2xl border border-black/5 hover:border-black transition-all cursor-pointer group"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold group-hover:text-black">{project.main_title}</h4>
-                    <span className={cn(
-                      "text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full",
-                      project.status === 'recruiting' ? "bg-blue-100 text-blue-600" :
-                      project.status === 'progress' ? "bg-orange-100 text-orange-600" :
-                      "bg-gray-100 text-gray-600"
-                    )}>
-                      {project.status === 'recruiting' ? '모집 중' : project.status === 'progress' ? '진행 중' : '완료됨'}
-                    </span>
+              allProjects.map(project => {
+                const isOwner = projects.created.some(p => p.id === project.id);
+                return (
+                  <div
+                    key={project.id}
+                    className="p-4 bg-gray-50 rounded-2xl border border-black/5 hover:border-black transition-all group"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <h4
+                        className="font-bold group-hover:text-black cursor-pointer"
+                        onClick={() => setSelectedPost(project)}
+                      >
+                        {project.main_title}
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full",
+                          project.status === 'recruiting' ? "bg-blue-100 text-blue-600" :
+                          project.status === 'progress' ? "bg-orange-100 text-orange-600" :
+                          "bg-gray-100 text-gray-600"
+                        )}>
+                          {project.status === 'recruiting' ? '모집 중' : project.status === 'progress' ? '진행 중' : '완료됨'}
+                        </span>
+                        {isOwner && project.status === 'recruiting' && (
+                          <button
+                            onClick={() => startEditProject(project)}
+                            className="p-1 rounded-lg hover:bg-gray-200 transition-all"
+                            title="수정"
+                          >
+                            <Edit3 size={14} className="text-gray-500" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 line-clamp-1">{project.subtitle}</p>
                   </div>
-                  <p className="text-xs text-gray-500 line-clamp-1">{project.subtitle}</p>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -246,12 +321,118 @@ export const MyPage: React.FC<MyPageProps> = ({ onGoToChat }) => {
         </div>
       </div>
 
+      {/* Edit Project Modal */}
+      <AnimatePresence>
+        {editingProject && editForm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
+              <div className="p-6 border-b border-black/5 flex justify-between items-center">
+                <h3 className="text-xl font-bold">프로젝트 수정</h3>
+                <button onClick={() => { setEditingProject(null); setEditForm(null); }} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest opacity-50">메인 제목</label>
+                  <input
+                    type="text"
+                    value={editForm.main_title}
+                    onChange={e => setEditForm(f => f && { ...f, main_title: e.target.value })}
+                    className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-black"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest opacity-50">부제목</label>
+                  <input
+                    type="text"
+                    value={editForm.subtitle}
+                    onChange={e => setEditForm(f => f && { ...f, subtitle: e.target.value })}
+                    className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-black"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest opacity-50">시작일</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="date"
+                        value={editForm.start_date}
+                        onChange={e => setEditForm(f => f && { ...f, start_date: e.target.value })}
+                        className="w-full bg-gray-50 rounded-2xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-black"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest opacity-50">종료일</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="date"
+                        value={editForm.end_date}
+                        onChange={e => setEditForm(f => f && { ...f, end_date: e.target.value })}
+                        className="w-full bg-gray-50 rounded-2xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-black"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest opacity-50">모집 개발자 수</label>
+                    <input
+                      type="number" min="0"
+                      value={editForm.needed_developers}
+                      onChange={e => setEditForm(f => f && { ...f, needed_developers: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold uppercase tracking-widest opacity-50">모집 디자이너 수</label>
+                    <input
+                      type="number" min="0"
+                      value={editForm.needed_designers}
+                      onChange={e => setEditForm(f => f && { ...f, needed_designers: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase tracking-widest opacity-50">내용</label>
+                  <textarea
+                    value={editForm.content}
+                    onChange={e => setEditForm(f => f && { ...f, content: e.target.value })}
+                    rows={5}
+                    className="w-full bg-gray-50 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-black resize-none"
+                  />
+                </div>
+              </div>
+              <div className="p-6 border-t border-black/5 flex gap-3">
+                <button
+                  onClick={() => { setEditingProject(null); setEditForm(null); }}
+                  className="flex-1 py-3 rounded-2xl border border-black/10 font-bold text-sm hover:bg-gray-50 transition-all"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleSaveProject}
+                  disabled={isSavingProject}
+                  className="flex-1 py-3 rounded-2xl bg-black text-white font-bold text-sm hover:bg-black/80 transition-all disabled:opacity-50"
+                >
+                  {isSavingProject ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {selectedPost && (
           <PostModal
             post={selectedPost}
             onClose={() => setSelectedPost(null)}
-            onGoToChat={onGoToChat}
+            onDeleted={() => { setSelectedPost(null); fetchProjects(); }}
           />
         )}
       </AnimatePresence>

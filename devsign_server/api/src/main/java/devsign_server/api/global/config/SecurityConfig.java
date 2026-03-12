@@ -15,6 +15,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -37,12 +39,20 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/projects/stats").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/projects/me").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/projects/*/applicants").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/projects/*/membership").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/projects/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/members/{id}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/members/{id}/reviews").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, ex) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
                 )
                 .addFilterBefore(
                         new JwtAuthenticationFilter(jwtProvider, memberDetailsService),

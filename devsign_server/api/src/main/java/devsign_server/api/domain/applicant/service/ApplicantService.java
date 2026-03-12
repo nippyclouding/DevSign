@@ -6,11 +6,13 @@ import devsign_server.api.domain.applicant.entity.Applicant;
 import devsign_server.api.domain.applicant.entity.ApplicantStatus;
 import devsign_server.api.domain.applicant.repository.ApplicantRepository;
 import devsign_server.api.domain.member.entity.Member;
+import devsign_server.api.domain.member.entity.Section;
 import devsign_server.api.domain.member.repository.MemberRepository;
 import devsign_server.api.domain.notification.entity.NotificationType;
 import devsign_server.api.domain.notification.event.NotificationEvent;
 import devsign_server.api.domain.project.dto.ProjectSummaryResponse;
 import devsign_server.api.domain.project.entity.Project;
+import devsign_server.api.domain.project.entity.ProjectStatus;
 import devsign_server.api.domain.project.repository.ProjectRepository;
 import devsign_server.api.global.exception.CustomException;
 import devsign_server.api.global.exception.ErrorCode;
@@ -36,16 +38,31 @@ public class ApplicantService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
 
+        // 1. 모집 중인 프로젝트에만 지원 가능
+        if (project.getStatus() != ProjectStatus.RECRUITING) {
+            throw new CustomException(ErrorCode.PROJECT_NOT_RECRUITING);
+        }
+
+        // 2. 본인 프로젝트 지원 불가
         if (project.isAuthor(memberId)) {
             throw new CustomException(ErrorCode.SELF_APPLICATION);
         }
 
+        // 3. 중복 지원 불가
         if (applicantRepository.existsByProjectProjectIdAndMemberMemberId(projectId, memberId)) {
             throw new CustomException(ErrorCode.DUPLICATE_APPLICATION);
         }
 
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
+
+        // 4. 역할 매칭 검증
+        Section role = member.getSection();
+        boolean roleNeeded = (role == Section.DEVELOPER && project.getNeededDevelopers() > 0)
+                || (role == Section.DESIGNER && project.getNeededDesigners() > 0);
+        if (!roleNeeded) {
+            throw new CustomException(ErrorCode.ROLE_MISMATCH);
+        }
 
         Applicant applicant = Applicant.builder()
                 .project(project)
@@ -62,6 +79,21 @@ public class ApplicantService {
         ));
 
         return ApplicantResponse.from(applicant);
+    }
+
+    @Transactional
+    public void cancelApplication(Long memberId, Long applicantId) {
+        Applicant applicant = applicantRepository.findById(applicantId)
+                .orElseThrow(() -> new CustomException(ErrorCode.APPLICANT_NOT_FOUND));
+
+        if (!applicant.getMember().getMemberId().equals(memberId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+        if (applicant.getStatus() != ApplicantStatus.PENDING) {
+            throw new CustomException(ErrorCode.APPLICATION_NOT_CANCELLABLE);
+        }
+
+        applicantRepository.delete(applicant);
     }
 
     public List<ApplicantResponse> getApplicants(Long memberId, Long projectId) {
@@ -89,6 +121,19 @@ public class ApplicantService {
 
         if (!applicant.getProject().isAuthor(memberId)) {
             throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+
+        // 승인 시 모집 인원 초과 검증
+        if (request.status() == ApplicantStatus.APPROVED) {
+            Section role = applicant.getMember().getSection();
+            long approvedCount = applicantRepository.countApprovedByProjectAndSection(
+                    applicant.getProject().getProjectId(), role);
+            int limit = role == Section.DEVELOPER
+                    ? applicant.getProject().getNeededDevelopers()
+                    : applicant.getProject().getNeededDesigners();
+            if (approvedCount >= limit) {
+                throw new CustomException(ErrorCode.APPLICANT_LIMIT_EXCEEDED);
+            }
         }
 
         applicant.updateStatus(request.status());

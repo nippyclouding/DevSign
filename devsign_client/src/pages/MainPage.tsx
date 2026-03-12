@@ -1,40 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { Post, ApiResponse } from '../types';
+import { Post, ProjectStats, ApiResponse } from '../types';
 import { PostModal } from '../components/PostModal';
 import { ChevronLeft, ChevronRight, Search, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '../components/AuthContext';
-
-interface MainPageProps {
-  onNavigate: (page: string) => void;
-  onGoToChat: (postId: number) => void;
-}
+import { useNavigate } from 'react-router-dom';
 
 interface PageData {
   content: Post[];
   total_pages: number;
 }
 
-export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) => {
+export const MainPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('all');
+  const [keyword, setKeyword] = useState('');
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const [totalPages, setTotalPages] = useState(1);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState<ProjectStats>({ active_projects: 0, today_projects: 0 });
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedKeyword(keyword), 400);
+    return () => clearTimeout(timer);
+  }, [keyword]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, sectionFilter, debouncedKeyword]);
 
   useEffect(() => {
     fetchPosts();
-  }, [page, statusFilter]);
+  }, [page, statusFilter, sectionFilter, debouncedKeyword]);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/projects/stats');
+      const json: ApiResponse<ProjectStats> = await res.json();
+      if (json.success) setStats(json.data);
+    } catch {}
+  };
 
   const fetchPosts = async () => {
     setIsLoading(true);
     try {
-      const statusParam = statusFilter !== 'all' ? `&status=${statusFilter.toUpperCase()}` : '';
-      const res = await fetch(`/api/projects?page=${page - 1}&size=10${statusParam}`);
+      const params = new URLSearchParams({ page: String(page - 1), size: '10' });
+      if (statusFilter !== 'all') params.set('status', statusFilter.toUpperCase());
+      if (sectionFilter !== 'all') params.set('section', sectionFilter.toUpperCase());
+      if (debouncedKeyword) params.set('keyword', debouncedKeyword);
+      const res = await fetch(`/api/projects?${params}`);
       const json: ApiResponse<PageData> = await res.json();
       if (json.success) {
         setPosts(json.data.content);
@@ -62,7 +87,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           <div className="flex gap-4 mb-8">
             {user && (
               <button
-                onClick={() => onNavigate('create')}
+                onClick={() => navigate('/create')}
                 className="bg-white text-black px-8 py-4 rounded-2xl font-bold hover:bg-gray-100 transition-all flex items-center gap-2"
               >
                 프로젝트 시작하기 <ArrowRight size={20} />
@@ -72,11 +97,11 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           <div className="flex gap-4">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 flex-1 border border-white/10">
               <p className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">Active Projects</p>
-              <p className="text-2xl font-bold">128</p>
+              <p className="text-2xl font-bold">{stats.active_projects}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 flex-1 border border-white/10">
               <p className="text-xs font-bold uppercase tracking-widest opacity-50 mb-1">New Today</p>
-              <p className="text-2xl font-bold">12</p>
+              <p className="text-2xl font-bold">{stats.today_projects}</p>
             </div>
           </div>
         </div>
@@ -98,6 +123,8 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           <input
             type="text"
             placeholder="프로젝트 검색..."
+            value={keyword}
+            onChange={e => setKeyword(e.target.value)}
             className="w-full bg-white border-none rounded-2xl pl-12 pr-4 py-4 shadow-sm focus:ring-2 focus:ring-black transition-all"
           />
         </div>
@@ -105,7 +132,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           {(['all', 'recruiting', 'progress', 'completed'] as const).map((s) => (
             <button
               key={s}
-              onClick={() => { setStatusFilter(s); setPage(1); }}
+              onClick={() => setStatusFilter(s)}
               className={cn(
                 "px-6 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap",
                 statusFilter === s ? "bg-black text-white" : "bg-white text-gray-500 border border-black/5"
@@ -115,6 +142,22 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Section Filter */}
+      <div className="flex gap-2">
+        {[['all', '전체'], ['developer', '개발자 모집'], ['designer', '디자이너 모집']].map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => setSectionFilter(val)}
+            className={cn(
+              "px-5 py-2 rounded-xl text-sm font-bold transition-all",
+              sectionFilter === val ? "bg-black text-white" : "bg-white text-gray-500 border border-black/5"
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Post Grid */}
@@ -216,7 +259,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onNavigate, onGoToChat }) =>
           <PostModal
             post={selectedPost}
             onClose={() => setSelectedPost(null)}
-            onGoToChat={onGoToChat}
+            onDeleted={() => { setSelectedPost(null); fetchPosts(); fetchStats(); }}
           />
         )}
       </AnimatePresence>

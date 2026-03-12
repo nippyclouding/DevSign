@@ -24,6 +24,7 @@ import java.util.Map;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtProvider jwtProvider;
+    private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -35,6 +36,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("http://localhost:5173")
+                .addInterceptors(jwtHandshakeInterceptor)
                 .withSockJS();
     }
 
@@ -47,13 +49,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
                     String authHeader = accessor.getFirstNativeHeader("Authorization");
                     if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
+                        // Bearer token path (fresh login)
                         String token = authHeader.substring(7);
-                        if (jwtProvider.validateToken(token)) {
-                            Long memberId = jwtProvider.getMemberId(token);
-                            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-                            if (sessionAttributes != null) {
-                                sessionAttributes.put("memberId", memberId);
-                            }
+                        if (!jwtProvider.validateToken(token)) {
+                            throw new IllegalArgumentException("유효하지 않은 토큰입니다.");
+                        }
+                        Long memberId = jwtProvider.getMemberId(token);
+                        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+                        if (sessionAttributes != null) {
+                            sessionAttributes.put("memberId", memberId);
+                        }
+                    } else {
+                        // Cookie path (page refresh): memberId already set by JwtHandshakeInterceptor
+                        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+                        if (sessionAttributes == null || !sessionAttributes.containsKey("memberId")) {
+                            throw new IllegalArgumentException("인증 토큰이 없습니다.");
                         }
                     }
                 }

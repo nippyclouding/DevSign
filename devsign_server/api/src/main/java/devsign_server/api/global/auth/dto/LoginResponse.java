@@ -8,7 +8,7 @@ public record LoginResponse(
         String email,
         String name,
         Section role,
-        int reputation,
+        double reputation,
         String profileData,
         String token
 ) {

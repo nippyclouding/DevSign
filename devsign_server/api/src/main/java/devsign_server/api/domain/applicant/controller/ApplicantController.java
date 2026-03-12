@@ -44,4 +44,13 @@ public class ApplicantController {
     ) {
         return ApiResponse.ok(applicantService.updateStatus(memberDetails.getMemberId(), applicantId, request));
     }
+
+    @DeleteMapping("/api/applicants/{applicantId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelApplication(
+            @AuthenticationPrincipal MemberDetails memberDetails,
+            @PathVariable Long applicantId
+    ) {
+        applicantService.cancelApplication(memberDetails.getMemberId(), applicantId);
+    }
 }

@@ -12,7 +12,7 @@ public record ProjectDetailResponse(
         Long authorId,
         String authorName,
         Section authorRole,
-        int authorReputation,
+        double authorReputation,
         String mainTitle,
         String subtitle,
         String content,

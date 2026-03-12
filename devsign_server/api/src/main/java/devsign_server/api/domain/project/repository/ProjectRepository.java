@@ -6,6 +6,7 @@ import devsign_server.api.domain.project.entity.ProjectStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,4 +34,14 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     );
 
     List<Project> findByMemberMemberIdOrderByCreatedAtDesc(Long memberId);
+
+    @Modifying
+    @Query("DELETE FROM Project p WHERE p.member.memberId = :memberId")
+    void deleteByMemberId(@Param("memberId") Long memberId);
+
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.status = devsign_server.api.domain.project.entity.ProjectStatus.RECRUITING")
+    long countActiveProjects();
+
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.createdAt >= :startOfDay")
+    long countTodayProjects(@Param("startOfDay") java.time.LocalDateTime startOfDay);
 }

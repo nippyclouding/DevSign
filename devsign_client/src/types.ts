@@ -60,6 +60,18 @@ export interface Message {
   created_at: string;
 }
 
+export interface ProjectStats {
+  active_projects: number;
+  today_projects: number;
+}
+
+export interface Membership {
+  is_author: boolean;
+  is_approved: boolean;
+  application_status: 'pending' | 'approved' | 'rejected' | null;
+  application_id: number | null;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;

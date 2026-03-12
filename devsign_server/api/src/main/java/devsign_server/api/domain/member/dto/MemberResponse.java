@@ -8,7 +8,7 @@ public record MemberResponse(
         String email,
         String name,
         Section role,
-        int reputation,
+        double reputation,
         String profileData
 ) {
     public static MemberResponse from(Member member) {

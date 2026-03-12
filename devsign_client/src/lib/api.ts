@@ -14,7 +14,7 @@ export async function apiFetch<T>(
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...options, headers, credentials: 'include' });
   const json: ApiResponse<T> = await res.json();
 
   if (!res.ok || !json.success) {

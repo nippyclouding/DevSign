@@ -55,6 +55,18 @@ public class Project extends BaseEntity {
         this.status = status;
     }
 
+    public void update(String mainTitle, String subtitle, String content,
+                       java.time.LocalDate startDate, java.time.LocalDate endDate,
+                       Integer neededDevelopers, Integer neededDesigners) {
+        if (mainTitle != null) this.mainTitle = mainTitle;
+        if (subtitle != null) this.subtitle = subtitle;
+        if (content != null) this.content = content;
+        if (startDate != null) this.startDate = startDate;
+        if (endDate != null) this.endDate = endDate;
+        if (neededDevelopers != null) this.neededDevelopers = neededDevelopers;
+        if (neededDesigners != null) this.neededDesigners = neededDesigners;
+    }
+
     public boolean isAuthor(Long memberId) {
         return this.member.getMemberId().equals(memberId);
     }

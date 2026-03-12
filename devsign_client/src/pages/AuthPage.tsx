@@ -4,6 +4,7 @@ import { Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Role, ApiResponse } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 interface LoginData {
   id: number;
@@ -15,7 +16,7 @@ interface LoginData {
   token: string;
 }
 
-export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSuccess }) => {
+export const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,13 +24,27 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
   const [role, setRole] = useState<Role>('developer');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const doLogin = async (loginEmail: string, loginPassword: string) => {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+    });
+    const json: ApiResponse<LoginData> = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.message || '로그인 실패');
+    const { token, ...userFields } = json.data;
+    login(token, userFields);
+    navigate('/');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       if (!isLogin) {
-        // 회원가입
         const res = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -40,28 +55,12 @@ export const AuthPage: React.FC<{ onAuthSuccess: () => void }> = ({ onAuthSucces
           alert(json.message || '회원가입 실패');
           return;
         }
-        // 가입 후 로그인 폼으로 전환
-        setIsLogin(true);
-        alert('회원가입 성공! 로그인해주세요.');
+        await doLogin(email, password);
         return;
       }
-
-      // 로그인
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const json: ApiResponse<LoginData> = await res.json();
-      if (!res.ok || !json.success) {
-        alert(json.message || '로그인 실패');
-        return;
-      }
-      const { token, ...userFields } = json.data;
-      login(token, userFields);
-      onAuthSuccess();
-    } catch (err) {
-      alert('오류가 발생했습니다');
+      await doLogin(email, password);
+    } catch (err: any) {
+      alert(err.message || '오류가 발생했습니다');
     } finally {
       setIsLoading(false);
     }

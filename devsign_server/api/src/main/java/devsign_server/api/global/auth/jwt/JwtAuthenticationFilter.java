@@ -3,6 +3,7 @@ package devsign_server.api.global.auth.jwt;
 import devsign_server.api.global.auth.MemberDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String bearer = request.getHeader("Authorization");
         if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
+        }
+        // Fallback: read JWT from httpOnly cookie
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("jwt".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
         }
         return null;
     }
