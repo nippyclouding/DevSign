@@ -189,7 +189,7 @@ npm run front        # Vite 개발 서버 (포트 5173)
 브라우저에서 [http://localhost:5173](http://localhost:5173) 접속
 
 > `npm run front`: Vite 개발 서버 (Spring Boot 백엔드 연동)
-> `npm run dev`: 구 Express 서버 — **사용하지 마세요**
+
 
 ---
 
